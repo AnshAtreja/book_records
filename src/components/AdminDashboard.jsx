@@ -1,17 +1,23 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useTable, useSortBy, usePagination } from "react-table";
 import { CSVLink } from "react-csv";
-import useFetchBooks from "../hooks/useFetchBook";
+import useFetchBooks from "../hooks/useFetchBooks";
 
 const AdminDashboard = () => {
   const { data, loading } = useFetchBooks();
+  const [filteredData, setFilteredData] = useState([]);
+  const [searchText, setSearchText] = useState("");
   const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setFilteredData(data); 
+  }, [data]);
 
   const columns = React.useMemo(
     () => [
-      { Header: "Title", accessor: "title" },
-      { Header: "Author Name", accessor: "author_name" },
-      { Header: "First Publish Year", accessor: "first_publish_year" },
+      { Header: "Title", accessor: "title", isEditable: true },
+      { Header: "Author Name", accessor: "author_name", isEditable: true },
+      { Header: "First Publish Year", accessor: "first_publish_year", isEditable: true },
       {
         Header: "Subject",
         accessor: "subject",
@@ -35,23 +41,74 @@ const AdminDashboard = () => {
     pageOptions,
     nextPage,
     previousPage,
+    setPageSize: setPageSizeTable,
     state: { pageIndex },
   } = useTable(
     {
       columns,
-      data,
+      data: filteredData,
       initialState: { pageIndex: 0, pageSize },
-    //   pageSize,
     },
     useSortBy,
     usePagination
   );
 
+  useEffect(() => {
+    setPageSizeTable(pageSize);
+  }, [pageSize, setPageSizeTable]);
+
+  const handleEdit = (rowIndex, columnId, value) => {
+    const newData = [...filteredData];
+    newData[rowIndex][columnId] = value;
+    setFilteredData(newData);
+  };
+
+  const handleSearch = () => {
+    const filtered = data.filter((item) =>
+      Object.values(item).some(
+        (value) =>
+          value &&
+          value.toString().toLowerCase().includes(searchText.toLowerCase())
+      )
+    );
+    setFilteredData(filtered);
+  };
+
+  const handleClear = () => {
+    setSearchText("");
+    setFilteredData(data);
+  };
+
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
+      <div className="flex mb-4">
+        <input
+          type="text"
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          placeholder="Search..."
+          className="mr-2 p-2 border border-gray-300 rounded"
+        />
+        <button
+          onClick={handleSearch}
+          className="px-4 py-2 bg-blue-500 text-white rounded"
+        >
+          Search
+        </button>
+        <button
+          onClick={handleClear}
+          className="px-4 py-2 bg-red-500 text-white rounded ml-2"
+        >
+          Clear
+        </button>
+      </div>
       {loading ? (
-        <p>Loading...</p>
+        <p>Loading...
+            Please note that as not all required columns mentioned in the task could be populated using a single API call, multiple API calls need to be made for populating each row correctly, hence it could take several minutes for the entries to be filled
+            In this online dashboard, the limit of the entries is set to 50, this can be adjusted in the /src/hooks/useFetchBooks.jsx folder by changing the value of the limit variable
+            Thanks for considering my application
+        </p>
       ) : (
         <div>
           <table
@@ -94,7 +151,16 @@ const AdminDashboard = () => {
                         {...cell.getCellProps()}
                         className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
                       >
-                        {cell.render("Cell")}
+                        {cell.column.isEditable ? (
+                          <input
+                            value={cell.value}
+                            onChange={(e) =>
+                              handleEdit(rowIndex, cell.column.id, e.target.value)
+                            }
+                          />
+                        ) : (
+                          cell.render("Cell")
+                        )}
                       </td>
                     ))}
                   </tr>
@@ -137,7 +203,7 @@ const AdminDashboard = () => {
               ))}
             </select>
             <CSVLink
-              data={data}
+              data={filteredData}
               headers={columns.map((column) => ({
                 label: column.Header,
                 key: column.accessor,
